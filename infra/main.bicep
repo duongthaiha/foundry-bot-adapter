@@ -21,9 +21,6 @@ param logAnalyticsWorkspaceName string
 @description('Optional Key Vault name. Leave empty to generate a unique name.')
 param keyVaultName string = ''
 
-@description('Enable Key Vault purge protection. Recommended for production; disabled by default to keep sample cleanup simple.')
-param enableKeyVaultPurgeProtection bool = false
-
 @allowed([
   'UserAssignedMSI'
   'SingleTenant'
@@ -201,7 +198,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       name: 'standard'
     }
     enableRbacAuthorization: true
-    enablePurgeProtection: enableKeyVaultPurgeProtection
+    enablePurgeProtection: true
     softDeleteRetentionInDays: 7
     publicNetworkAccess: 'Enabled'
   }

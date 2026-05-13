@@ -115,6 +115,8 @@ KEY_VAULT_URI
 
 The deployment stores Container Apps secrets in Key Vault and references them from the Container App by `keyVaultUrl` using the adapter's user-assigned managed identity. The identity receives the `Key Vault Secrets User` role on the generated vault.
 
+Key Vault purge protection is enabled by default. This is recommended for production secret protection, but it also means deleted vaults and secrets cannot be permanently purged until the retention period expires.
+
 If needed, query the managed identity directly:
 
 ```powershell

@@ -57,7 +57,7 @@ This avoids storing a Bot Framework app password.
 
 ## Secret storage
 
-The Bicep deployment creates an Azure Key Vault and configures Container Apps secrets as Key Vault references. The Container App uses its user-assigned managed identity to read the referenced secrets.
+The Bicep deployment creates an Azure Key Vault with purge protection enabled and configures Container Apps secrets as Key Vault references. The Container App uses its user-assigned managed identity to read the referenced secrets.
 
 By default, the only secret is `local-test-api-key`, used by the optional protected smoke-test endpoint. If you switch to `SingleTenant` Bot Framework auth, `bot-app-password` is also stored in Key Vault and referenced by the Container App.
 
