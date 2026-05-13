@@ -20,8 +20,17 @@
     "logAnalyticsWorkspaceName": {
       "value": "${LOG_ANALYTICS_WORKSPACE_NAME}"
     },
+    "botAuthType": {
+      "value": "${BOT_AUTH_TYPE}"
+    },
+    "microsoftAppId": {
+      "value": "${MICROSOFT_APP_ID}"
+    },
     "microsoftAppTenantId": {
-      "value": "${AZURE_TENANT_ID}"
+      "value": "${MICROSOFT_APP_TENANT_ID}"
+    },
+    "botAppPassword": {
+      "value": "${BOT_APP_PASSWORD}"
     },
     "enableLocalTestEndpoints": {
       "value": "${ENABLE_LOCAL_TEST_ENDPOINTS}"

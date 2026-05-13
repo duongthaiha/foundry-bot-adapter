@@ -24,6 +24,7 @@ Teams or Web Chat
 | `test` | Node test runner tests for metadata and Foundry response parsing. |
 | `infra` | Bicep infrastructure for Azure Container Apps, ACR, Key Vault, App Insights, managed identity, and Foundry/RBAC assignments. |
 | `scripts\smoke-foundry-adapter.ps1` | Health and optional Foundry smoke test. |
+| `scripts\configure-existing-bot-singletenant.ps1` | Helper for wiring an existing SingleTenant Bot Service to the adapter. |
 | `docs\setup.md` | Step-by-step setup for Foundry, Azure Bot Service, and Teams. |
 | `azure.yaml` | Azure Developer CLI deployment configuration. |
 
@@ -54,6 +55,8 @@ Adapter AZURE_CLIENT_ID    = adapter managed identity client ID
 ```
 
 This avoids storing a Bot Framework app password.
+
+If you must reuse an existing Azure Bot Service that already has a normal app registration, deploy the adapter with `BOT_AUTH_TYPE=SingleTenant`, `MICROSOFT_APP_ID=<existing-bot-app-id>`, and a `BOT_APP_PASSWORD` secret. The deployment stores that password in Key Vault and references it from Container Apps.
 
 ## Secret storage
 
@@ -97,13 +100,39 @@ azd env set FOUNDRY_ACCOUNT_NAME <foundry-account-name>
 azd env set FOUNDRY_PROJECT_NAME <foundry-project-name>
 azd env set FOUNDRY_AGENT_NAME <foundry-agent-name>
 azd env set LOG_ANALYTICS_WORKSPACE_NAME <workspace-name>
-azd env set AZURE_TENANT_ID <tenant-id>
+azd env set BOT_AUTH_TYPE UserAssignedMSI
+azd env set MICROSOFT_APP_ID ""
+azd env set MICROSOFT_APP_TENANT_ID <tenant-id>
+azd env set BOT_APP_PASSWORD ""
 azd env set ENABLE_LOCAL_TEST_ENDPOINTS false
 azd env set LOCAL_TEST_API_KEY ""
 azd up
 ```
 
 Then create an Azure Bot Service that uses the deployed adapter endpoint. See `docs\setup.md` for the full bot/channel setup.
+
+For an existing SingleTenant Bot Service, set these values before `azd up`:
+
+```powershell
+azd env set BOT_AUTH_TYPE SingleTenant
+azd env set MICROSOFT_APP_ID <existing-bot-app-id>
+azd env set MICROSOFT_APP_TENANT_ID <tenant-id>
+azd env set-secret BOT_APP_PASSWORD <client-secret>
+```
+
+After deployment, point the existing Bot Service endpoint to `https://<container-app-fqdn>/api/messages`, or use:
+
+```powershell
+.\scripts\configure-existing-bot-singletenant.ps1 `
+  -BotResourceGroup <bot-resource-group> `
+  -BotName <bot-name> `
+  -AdapterResourceGroup <adapter-resource-group> `
+  -ContainerAppName <container-app-name> `
+  -KeyVaultName <key-vault-name> `
+  -ManagedIdentityName <adapter-managed-identity-name> `
+  -PromptForBotAppPassword `
+  -UpdateBotEndpoint
+```
 
 ## Smoke test deployed adapter
 
@@ -128,7 +157,7 @@ See `docs\setup.md` for a complete setup flow:
 
 1. Create/test a Foundry agent.
 2. Deploy the adapter.
-3. Create Azure Bot Service with `UserAssignedMSI`.
+3. Create Azure Bot Service with `UserAssignedMSI` or reuse an existing `SingleTenant` Bot Service.
 4. Enable Direct Line and Teams channels.
 5. Validate traffic through the adapter.
 

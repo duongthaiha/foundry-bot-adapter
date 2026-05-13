@@ -90,7 +90,10 @@ azd env set FOUNDRY_ACCOUNT_NAME <foundry-account-name>
 azd env set FOUNDRY_PROJECT_NAME <foundry-project-name>
 azd env set FOUNDRY_AGENT_NAME <foundry-agent-name>
 azd env set LOG_ANALYTICS_WORKSPACE_NAME <workspace-name>
-azd env set AZURE_TENANT_ID <tenant-id>
+azd env set BOT_AUTH_TYPE UserAssignedMSI
+azd env set MICROSOFT_APP_ID ""
+azd env set MICROSOFT_APP_TENANT_ID <tenant-id>
+azd env set BOT_APP_PASSWORD ""
 azd env set ENABLE_LOCAL_TEST_ENDPOINTS false
 azd env set LOCAL_TEST_API_KEY ""
 ```
@@ -160,7 +163,7 @@ azd up
 
 The `LOCAL_TEST_API_KEY` value is stored in Key Vault as `local-test-api-key`; the Container App receives it through a Container Apps secret reference, not as an inline secret value.
 
-## 6. Create Azure Bot Service
+## 6. Create Azure Bot Service with UserAssignedMSI
 
 Create a Bot Service that uses the adapter's managed identity as the Bot Framework app ID:
 
@@ -191,7 +194,91 @@ az bot show `
 
 The bot app ID must match the adapter managed identity client ID.
 
-## 7. Enable channels
+## 7. Use an existing SingleTenant Bot Service
+
+If you already have an Azure Bot Service with a normal app registration, configure the adapter to use that bot's app ID and client secret instead of the adapter managed identity as the Bot Framework app ID.
+
+Get the existing bot app ID and tenant:
+
+```powershell
+$BotAppId = az bot show `
+  --resource-group <bot-resource-group> `
+  --name <bot-name> `
+  --query properties.msaAppId -o tsv
+
+$BotTenantId = az bot show `
+  --resource-group <bot-resource-group> `
+  --name <bot-name> `
+  --query properties.msaAppTenantId -o tsv
+```
+
+Create a client secret if you do not already have one:
+
+```powershell
+$BotAppPassword = az ad app credential reset `
+  --id $BotAppId `
+  --append `
+  --display-name "foundry-bot-adapter" `
+  --years 1 `
+  --query password `
+  -o tsv
+```
+
+Set AZD values before deploying:
+
+```powershell
+azd env set BOT_AUTH_TYPE SingleTenant
+azd env set MICROSOFT_APP_ID $BotAppId
+azd env set MICROSOFT_APP_TENANT_ID $BotTenantId
+azd env set-secret BOT_APP_PASSWORD $BotAppPassword
+azd up
+```
+
+The deployment stores `BOT_APP_PASSWORD` in Key Vault as `bot-app-password` and configures the Container App with a Key Vault-backed secret reference.
+
+After deployment, update the existing Bot Service messaging endpoint:
+
+```powershell
+$Endpoint = azd env get-value BOT_MESSAGES_ENDPOINT
+az bot update `
+  --resource-group <bot-resource-group> `
+  --name <bot-name> `
+  --endpoint $Endpoint
+```
+
+You can also use the helper script after the adapter is deployed:
+
+```powershell
+.\scripts\configure-existing-bot-singletenant.ps1 `
+  -BotResourceGroup <bot-resource-group> `
+  -BotName <bot-name> `
+  -AdapterResourceGroup <adapter-resource-group> `
+  -ContainerAppName <container-app-name> `
+  -KeyVaultName <key-vault-name> `
+  -ManagedIdentityName <adapter-managed-identity-name> `
+  -PromptForBotAppPassword `
+  -UpdateBotEndpoint
+```
+
+Confirm both sides match:
+
+```powershell
+az bot show `
+  --resource-group <bot-resource-group> `
+  --name <bot-name> `
+  --query "{appId:properties.msaAppId, appType:properties.msaAppType, tenant:properties.msaAppTenantId, endpoint:properties.endpoint}" `
+  -o json
+
+az containerapp show `
+  --resource-group <adapter-resource-group> `
+  --name <container-app-name> `
+  --query "properties.template.containers[0].env[?name=='MicrosoftAppType' || name=='MicrosoftAppId' || name=='MicrosoftAppTenantId' || name=='MicrosoftAppPassword']" `
+  -o json
+```
+
+The Bot Service `msaAppId` must equal the adapter `MicrosoftAppId`.
+
+## 8. Enable channels
 
 Enable Direct Line for scripted validation:
 
@@ -210,7 +297,7 @@ az bot msteams create `
   --name <bot-name>
 ```
 
-## 8. Validate Bot Service traffic
+## 9. Validate Bot Service traffic
 
 Use Direct Line, Web Chat in the Azure portal, or Teams. A successful adapter request writes a log like:
 
@@ -228,20 +315,20 @@ az containerapp logs show `
   --format text
 ```
 
-## 9. Create the Teams app
+## 10. Create the Teams app
 
 Use Teams Developer Portal:
 
 1. Create a Teams app.
 2. Add a bot.
-3. Use the Azure Bot Service app ID, which should be the adapter managed identity client ID.
+3. Use the Azure Bot Service app ID. For `UserAssignedMSI`, this is the adapter managed identity client ID. For `SingleTenant`, this is the existing bot app registration client ID.
 4. Start with the `personal` scope.
 5. Add the Container App host name as a valid domain.
 6. Install or publish the app and send a test message.
 
 If you use the Foundry portal Teams publishing flow instead, you are testing the managed Foundry bridge, not this adapter.
 
-## 10. SingleTenant alternative
+## 11. Manual SingleTenant alternative
 
 If managed identity Bot Framework auth is not available in your environment, use a normal app registration and secret:
 
