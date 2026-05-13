@@ -1,0 +1,11 @@
+node_modules/
+.azure/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+dist/
+coverage/
+infra/main.json
+.DS_Store

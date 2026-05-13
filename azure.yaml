@@ -1,0 +1,13 @@
+name: foundry-bot-adapter
+metadata:
+  template: foundry-bot-adapter@0.1.0
+
+services:
+  bot-adapter:
+    project: .
+    language: js
+    host: containerapp
+    docker:
+      path: Dockerfile
+      context: .
+      remoteBuild: true

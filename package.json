@@ -1,0 +1,22 @@
+{
+  "name": "foundry-bot-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bot Framework adapter that calls a Foundry agent without oversized runtime metadata.",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js && node --check src/bot.js && node --check src/config.js && node --check src/foundryClient.js && node --check src/metadata.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.13.0",
+    "botbuilder": "^4.23.3",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {}
+}

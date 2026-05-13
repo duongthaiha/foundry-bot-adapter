@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "foundryAccountName": {
+      "value": "${FOUNDRY_ACCOUNT_NAME}"
+    },
+    "foundryProjectName": {
+      "value": "${FOUNDRY_PROJECT_NAME}"
+    },
+    "foundryAgentName": {
+      "value": "${FOUNDRY_AGENT_NAME}"
+    },
+    "logAnalyticsWorkspaceName": {
+      "value": "${LOG_ANALYTICS_WORKSPACE_NAME}"
+    },
+    "microsoftAppTenantId": {
+      "value": "${AZURE_TENANT_ID}"
+    },
+    "enableLocalTestEndpoints": {
+      "value": "${ENABLE_LOCAL_TEST_ENDPOINTS}"
+    },
+    "localTestApiKey": {
+      "value": "${LOCAL_TEST_API_KEY}"
+    }
+  }
+}
