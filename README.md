@@ -113,11 +113,39 @@ Then create an Azure Bot Service that uses the deployed adapter endpoint. See `d
 
 For an existing SingleTenant Bot Service, set these values before `azd up`:
 
+You cannot retrieve the value of an existing Entra client secret after it has been created. If you do not already have the secret value saved, create a new client secret for the existing bot app registration and copy the **Value** immediately.
+
+Azure CLI:
+
+```powershell
+$BotAppId = az bot show `
+  --resource-group <bot-resource-group> `
+  --name <bot-name> `
+  --query properties.msaAppId `
+  -o tsv
+
+$BotAppPassword = az ad app credential reset `
+  --id $BotAppId `
+  --append `
+  --display-name "foundry-bot-adapter" `
+  --years 1 `
+  --query password `
+  -o tsv
+```
+
+Azure portal:
+
+1. Go to **Microsoft Entra ID** > **App registrations**.
+2. Search for the existing Bot Service **Microsoft App ID**.
+3. Open the app registration, then go to **Certificates & secrets** > **Client secrets**.
+4. Select **New client secret**, choose an expiry, and select **Add**.
+5. Copy the secret **Value** immediately and use it as `BOT_APP_PASSWORD`.
+
 ```powershell
 azd env set BOT_AUTH_TYPE SingleTenant
 azd env set MICROSOFT_APP_ID <existing-bot-app-id>
 azd env set MICROSOFT_APP_TENANT_ID <tenant-id>
-azd env set-secret BOT_APP_PASSWORD <client-secret>
+azd env set-secret BOT_APP_PASSWORD $BotAppPassword
 ```
 
 After deployment, point the existing Bot Service endpoint to `https://<container-app-fqdn>/api/messages`, or use:
