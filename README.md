@@ -22,7 +22,7 @@ Teams or Web Chat
 | --- | --- |
 | `src` | Express + Bot Framework adapter code. |
 | `test` | Node test runner tests for metadata and Foundry response parsing. |
-| `infra` | Bicep infrastructure for Azure Container Apps, ACR, App Insights, managed identity, and Foundry RBAC. |
+| `infra` | Bicep infrastructure for Azure Container Apps, ACR, Key Vault, App Insights, managed identity, and Foundry/RBAC assignments. |
 | `scripts\smoke-foundry-adapter.ps1` | Health and optional Foundry smoke test. |
 | `docs\setup.md` | Step-by-step setup for Foundry, Azure Bot Service, and Teams. |
 | `azure.yaml` | Azure Developer CLI deployment configuration. |
@@ -54,6 +54,12 @@ Adapter AZURE_CLIENT_ID    = adapter managed identity client ID
 ```
 
 This avoids storing a Bot Framework app password.
+
+## Secret storage
+
+The Bicep deployment creates an Azure Key Vault and configures Container Apps secrets as Key Vault references. The Container App uses its user-assigned managed identity to read the referenced secrets.
+
+By default, the only secret is `local-test-api-key`, used by the optional protected smoke-test endpoint. If you switch to `SingleTenant` Bot Framework auth, `bot-app-password` is also stored in Key Vault and referenced by the Container App.
 
 ## Local validation
 

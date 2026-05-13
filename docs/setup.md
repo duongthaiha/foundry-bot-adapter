@@ -5,7 +5,7 @@ This guide sets up a fresh Azure AI Foundry agent with a custom Bot Framework ad
 ## 1. Prerequisites
 
 - Azure CLI, Azure Developer CLI, Node.js 22, and GitHub CLI if publishing to GitHub.
-- An Azure subscription where you can create Container Apps, Container Registry, managed identities, Bot Service, Application Insights, and role assignments.
+- An Azure subscription where you can create Container Apps, Container Registry, Key Vault, managed identities, Bot Service, Application Insights, and role assignments.
 - A Foundry project with a model deployment that can run an agent.
 - A Log Analytics workspace in the target resource group.
 
@@ -109,7 +109,11 @@ Record the deployment outputs:
 BOT_ADAPTER_BASE_URL
 BOT_MESSAGES_ENDPOINT
 MANAGED_IDENTITY_CLIENT_ID
+KEY_VAULT_NAME
+KEY_VAULT_URI
 ```
+
+The deployment stores Container Apps secrets in Key Vault and references them from the Container App by `keyVaultUrl` using the adapter's user-assigned managed identity. The identity receives the `Key Vault Secrets User` role on the generated vault.
 
 If needed, query the managed identity directly:
 
@@ -151,6 +155,8 @@ Disable the smoke endpoint after validation:
 azd env set ENABLE_LOCAL_TEST_ENDPOINTS false
 azd up
 ```
+
+The `LOCAL_TEST_API_KEY` value is stored in Key Vault as `local-test-api-key`; the Container App receives it through a Container Apps secret reference, not as an inline secret value.
 
 ## 6. Create Azure Bot Service
 
@@ -244,13 +250,21 @@ MicrosoftAppTenantId=<tenant-id>
 MicrosoftAppPassword=<client-secret>
 ```
 
-Set the Container App secret:
+With Bicep, set `botAuthType` to `SingleTenant`, set `microsoftAppId` to the app registration client ID, and pass `botAppPassword` as a secure deployment parameter. The template stores `botAppPassword` in Key Vault as `bot-app-password` and configures the Container App secret as a Key Vault reference.
+
+For an already deployed Container App, you can manually store the secret in Key Vault and update the Container App secret reference:
 
 ```powershell
+$SecretUri = az keyvault secret set `
+  --vault-name <key-vault-name> `
+  --name bot-app-password `
+  --value <client-secret> `
+  --query properties.id -o tsv
+
 az containerapp secret set `
   --resource-group <resource-group-name> `
   --name <container-app-name> `
-  --secrets "bot-app-password=<client-secret>"
+  --secrets "bot-app-password=keyvaultref:$SecretUri,identityref:<managed-identity-resource-id>"
 
 az containerapp update `
   --resource-group <resource-group-name> `

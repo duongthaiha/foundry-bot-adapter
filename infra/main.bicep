@@ -18,6 +18,12 @@ param foundryAgentName string
 @description('Existing Log Analytics workspace for Container Apps and Application Insights.')
 param logAnalyticsWorkspaceName string
 
+@description('Optional Key Vault name. Leave empty to generate a unique name.')
+param keyVaultName string = ''
+
+@description('Enable Key Vault purge protection. Recommended for production; disabled by default to keep sample cleanup simple.')
+param enableKeyVaultPurgeProtection bool = false
+
 @allowed([
   'UserAssignedMSI'
   'SingleTenant'
@@ -53,27 +59,30 @@ var containerAppsEnvironmentName = 'cae-bot-adapter-${uniqueSuffix}'
 var containerAppName = 'ca-bot-adapter-${uniqueSuffix}'
 var identityName = 'id-bot-adapter-${uniqueSuffix}'
 var appInsightsName = 'appi-bot-adapter-${uniqueSuffix}'
+var effectiveKeyVaultName = empty(keyVaultName) ? 'kv-bot-adapter-${uniqueSuffix}' : keyVaultName
 var foundryProjectEndpoint = 'https://${foundryAccountName}.services.ai.azure.com/api/projects/${foundryProjectName}'
 var foundryResponsesEndpoint = '${foundryProjectEndpoint}/agents/${foundryAgentName}/endpoint/protocols/openai/responses?api-version=2025-11-15-preview'
 var azureAiUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var useUserAssignedMsiBotAuth = toLower(botAuthType) == 'userassignedmsi'
 var effectiveMicrosoftAppId = useUserAssignedMsiBotAuth ? adapterIdentity.properties.clientId : microsoftAppId
-var containerAppSecrets = useUserAssignedMsiBotAuth ? [
+var localTestApiKeySecretValue = empty(localTestApiKey) ? 'disabled' : localTestApiKey
+var localTestContainerAppSecret = [
   {
     name: 'local-test-api-key'
-    value: localTestApiKey
-  }
-] : [
-  {
-    name: 'bot-app-password'
-    value: botAppPassword
-  }
-  {
-    name: 'local-test-api-key'
-    value: localTestApiKey
+    keyVaultUrl: localTestApiKeySecret.properties.secretUriWithVersion
+    identity: adapterIdentity.id
   }
 ]
+var botPasswordContainerAppSecret = useUserAssignedMsiBotAuth ? [] : [
+  {
+    name: 'bot-app-password'
+    keyVaultUrl: botAppPasswordSecret!.properties.secretUriWithVersion
+    identity: adapterIdentity.id
+  }
+]
+var containerAppSecrets = concat(localTestContainerAppSecret, botPasswordContainerAppSecret)
 var baseContainerEnv = [
   {
     name: 'PORT'
@@ -179,6 +188,49 @@ resource adapterIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   name: identityName
   location: location
   tags: tags
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: effectiveKeyVaultName
+  location: location
+  tags: tags
+  properties: {
+    tenantId: subscription().tenantId
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+    enableRbacAuthorization: true
+    enablePurgeProtection: enableKeyVaultPurgeProtection
+    softDeleteRetentionInDays: 7
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource localTestApiKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'local-test-api-key'
+  properties: {
+    value: localTestApiKeySecretValue
+  }
+}
+
+resource botAppPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!useUserAssignedMsiBotAuth) {
+  parent: keyVault
+  name: 'bot-app-password'
+  properties: {
+    value: botAppPassword
+  }
+}
+
+resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, adapterIdentity.id, keyVaultSecretsUserRoleDefinitionId)
+  scope: keyVault
+  properties: {
+    roleDefinitionId: keyVaultSecretsUserRoleDefinitionId
+    principalId: adapterIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
@@ -292,6 +344,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   dependsOn: [
     acrPullRoleAssignment
     foundryRoleAssignment
+    keyVaultSecretsUserRoleAssignment
   ]
 }
 
@@ -300,6 +353,8 @@ output AZURE_CONTAINER_REGISTRY_NAME string = containerRegistry.name
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
 output AZURE_CONTAINER_REGISTRY_MANAGED_IDENTITY_ID string = adapterIdentity.id
 output MANAGED_IDENTITY_CLIENT_ID string = adapterIdentity.properties.clientId
+output KEY_VAULT_NAME string = keyVault.name
+output KEY_VAULT_URI string = keyVault.properties.vaultUri
 output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = containerAppsEnvironment.name
 output BOT_ADAPTER_BASE_URL string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 output BOT_MESSAGES_ENDPOINT string = 'https://${containerApp.properties.configuration.ingress.fqdn}/api/messages'
